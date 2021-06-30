@@ -3,9 +3,9 @@
 pragma solidity 0.6.12;
 
 import "./SafeMath.sol";
-import "./Ownable.sol";
-import "./ReentrancyGuard.sol";
 import "./Address.sol";
+import "./ReentrancyGuard.sol";
+import "./Ownable.sol";
 
 import "./HornToken.sol";
 
@@ -104,16 +104,14 @@ library SafeBEP20 {
 }
 
 
-
-
-// MasterChef is the master of Horn. He can make Horn and he is a fair guy.
+// MasterChef is the master of Egg. He can make Egg and he is a fair guy.
 //
 // Note that it's ownable and the owner wields tremendous power. The ownership
-// will be transferred to a governance smart contract once Horn is sufficiently
+// will be transferred to a governance smart contract once EGG is sufficiently
 // distributed and the community can show to govern itself.
 //
 // Have fun reading it. Hopefully it's bug-free. God bless.
-contract MasterChef is Ownable, ReentrancyGuard {
+contract MasterChef is Ownable {
     using SafeMath for uint256;
     using SafeBEP20 for IBEP20;
 
@@ -122,13 +120,13 @@ contract MasterChef is Ownable, ReentrancyGuard {
         uint256 amount;         // How many LP tokens the user has provided.
         uint256 rewardDebt;     // Reward debt. See explanation below.
         //
-        // We do some fancy math here. Basically, any point in time, the amount of Horns
+        // We do some fancy math here. Basically, any point in time, the amount of EGGs
         // entitled to a user but is pending to be distributed is:
         //
-        //   pending reward = (user.amount * pool.accHornPerShare) - user.rewardDebt
+        //   pending reward = (user.amount * pool.accEggPerShare) - user.rewardDebt
         //
         // Whenever a user deposits or withdraws LP tokens to a pool. Here's what happens:
-        //   1. The pool's `accHornPerShare` (and `lastRewardBlock`) gets updated.
+        //   1. The pool's `accEggPerShare` (and `lastRewardBlock`) gets updated.
         //   2. User receives the pending reward sent to his/her address.
         //   3. User's `amount` gets updated.
         //   4. User's `rewardDebt` gets updated.
@@ -137,58 +135,48 @@ contract MasterChef is Ownable, ReentrancyGuard {
     // Info of each pool.
     struct PoolInfo {
         IBEP20 lpToken;           // Address of LP token contract.
-        uint256 allocPoint;       // How many allocation points assigned to this pool. Horns to distribute per block.
-        uint256 lastRewardBlock;  // Last block number that Horns distribution occurs.
-        uint256 accHornPerShare;   // Accumulated Horns per share, times 1e12. See below.
+        uint256 allocPoint;       // How many allocation points assigned to this pool. EGGs to distribute per block.
+        uint256 lastRewardBlock;  // Last block number that EGGs distribution occurs.
+        uint256 accEggPerShare;   // Accumulated EGGs per share, times 1e12. See below.
         uint16 depositFeeBP;      // Deposit fee in basis points
     }
 
-    // The Horn TOKEN!
-    HornToken public Horn;
+    // The EGG TOKEN!
+    HornToken public horn;
     // Dev address.
-    address public devAddress;
+    address public devaddr;
+    // EGG tokens created per block.
+    uint256 public hornPerBlock;
+    // Bonus muliplier for early horn makers.
+    uint256 public constant BONUS_MULTIPLIER = 1;
     // Deposit Fee address
     address public feeAddress;
-    // Horn tokens created per block.
-    uint256 public HornPerBlock;
-    // Bonus muliplier for early Horn makers.
-    uint256 public constant BONUS_MULTIPLIER = 1;
-
-    // Initial emission rate: 1 Horn per block.
-    uint256 public constant INITIAL_EMISSION_RATE = 0.5 ether;
-    // Minimum emission rate: 0.4 Horn per block.
-    uint256 public constant MINIMUM_EMISSION_RATE = 50 finney;
-    // Reduce emission every 86,400 blocks ~ 24 hours.
-    uint256 public constant EMISSION_REDUCTION_PERIOD_BLOCKS = 86400;
-    // Emission reduction rate per period in basis points: 2.5%.
-    uint256 public constant EMISSION_REDUCTION_RATE_PER_PERIOD = 300;
-    // Last reduction period index
-    uint256 public lastReductionPeriodIndex = 0;
 
     // Info of each pool.
     PoolInfo[] public poolInfo;
     // Info of each user that stakes LP tokens.
-    mapping(uint256 => mapping(address => UserInfo)) public userInfo;
+    mapping (uint256 => mapping (address => UserInfo)) public userInfo;
     // Total allocation points. Must be the sum of all allocation points in all pools.
     uint256 public totalAllocPoint = 0;
-    // The block number when Horn mining starts.
+    // The block number when EGG mining starts.
     uint256 public startBlock;
 
     event Deposit(address indexed user, uint256 indexed pid, uint256 amount);
     event Withdraw(address indexed user, uint256 indexed pid, uint256 amount);
     event EmergencyWithdraw(address indexed user, uint256 indexed pid, uint256 amount);
-    event EmissionRateUpdated(address indexed caller, uint256 previousAmount, uint256 newAmount);
 
     constructor(
-        HornToken _Horn,
+        HornToken _horn,
+        address _devaddr,
+        address _feeAddress,
+        uint256 _hornPerBlock,
         uint256 _startBlock
     ) public {
-        Horn = _Horn;
+        horn = _horn;
+        devaddr = _devaddr;
+        feeAddress = _feeAddress;
+        hornPerBlock = _hornPerBlock;
         startBlock = _startBlock;
-
-        devAddress = msg.sender;
-        feeAddress = msg.sender;
-        HornPerBlock = INITIAL_EMISSION_RATE;
     }
 
     function poolLength() external view returns (uint256) {
@@ -208,12 +196,12 @@ contract MasterChef is Ownable, ReentrancyGuard {
             lpToken: _lpToken,
             allocPoint: _allocPoint,
             lastRewardBlock: lastRewardBlock,
-            accHornPerShare: 0,
+            accEggPerShare: 0,
             depositFeeBP: _depositFeeBP
         }));
     }
 
-    // Update the given pool's Horn allocation point and deposit fee. Can only be called by the owner.
+    // Update the given pool's EGG allocation point and deposit fee. Can only be called by the owner.
     function set(uint256 _pid, uint256 _allocPoint, uint16 _depositFeeBP, bool _withUpdate) public onlyOwner {
         require(_depositFeeBP <= 10000, "set: invalid deposit fee basis points");
         if (_withUpdate) {
@@ -225,22 +213,22 @@ contract MasterChef is Ownable, ReentrancyGuard {
     }
 
     // Return reward multiplier over the given _from to _to block.
-    function getMultiplier(uint256 _from, uint256 _to) public pure returns (uint256) {
+    function getMultiplier(uint256 _from, uint256 _to) public view returns (uint256) {
         return _to.sub(_from).mul(BONUS_MULTIPLIER);
     }
 
-    // View function to see pending Horns on frontend.
-    function pendingHorn(uint256 _pid, address _user) external view returns (uint256) {
+    // View function to see pending EGGs on frontend.
+    function pendingEgg(uint256 _pid, address _user) external view returns (uint256) {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][_user];
-        uint256 accHornPerShare = pool.accHornPerShare;
+        uint256 accEggPerShare = pool.accEggPerShare;
         uint256 lpSupply = pool.lpToken.balanceOf(address(this));
         if (block.number > pool.lastRewardBlock && lpSupply != 0) {
             uint256 multiplier = getMultiplier(pool.lastRewardBlock, block.number);
-            uint256 HornReward = multiplier.mul(HornPerBlock).mul(pool.allocPoint).div(totalAllocPoint);
-            accHornPerShare = accHornPerShare.add(HornReward.mul(1e12).div(lpSupply));
+            uint256 hornReward = multiplier.mul(hornPerBlock).mul(pool.allocPoint).div(totalAllocPoint);
+            accEggPerShare = accEggPerShare.add(hornReward.mul(1e12).div(lpSupply));
         }
-        return user.amount.mul(accHornPerShare).div(1e12).sub(user.rewardDebt);
+        return user.amount.mul(accEggPerShare).div(1e12).sub(user.rewardDebt);
     }
 
     // Update reward variables for all pools. Be careful of gas spending!
@@ -263,39 +251,35 @@ contract MasterChef is Ownable, ReentrancyGuard {
             return;
         }
         uint256 multiplier = getMultiplier(pool.lastRewardBlock, block.number);
-        uint256 HornReward = multiplier.mul(HornPerBlock).mul(pool.allocPoint).div(totalAllocPoint);
-        Horn.mint(devAddress, HornReward.div(10));
-        Horn.mint(address(this), HornReward);
-        pool.accHornPerShare = pool.accHornPerShare.add(HornReward.mul(1e12).div(lpSupply));
+        uint256 hornReward = multiplier.mul(hornPerBlock).mul(pool.allocPoint).div(totalAllocPoint);
+        horn.mint(devaddr, hornReward.div(10));
+        horn.mint(address(this), hornReward);
+        pool.accEggPerShare = pool.accEggPerShare.add(hornReward.mul(1e12).div(lpSupply));
         pool.lastRewardBlock = block.number;
     }
 
-    // Deposit LP tokens to MasterChef for Horn allocation.
+    // Deposit LP tokens to MasterChef for EGG allocation.
     function deposit(uint256 _pid, uint256 _amount) public {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         updatePool(_pid);
         if (user.amount > 0) {
-            uint256 pending = user.amount.mul(pool.accHornPerShare).div(1e12).sub(user.rewardDebt);
-            if (pending > 0) {
-                safeHornTransfer(msg.sender, pending);
+            uint256 pending = user.amount.mul(pool.accEggPerShare).div(1e12).sub(user.rewardDebt);
+            if(pending > 0) {
+                safeEggTransfer(msg.sender, pending);
             }
         }
-        if (_amount > 0) {
+        if(_amount > 0) {
             pool.lpToken.safeTransferFrom(address(msg.sender), address(this), _amount);
-            if (address(pool.lpToken) == address(Horn)) {
-                uint256 transferTax = _amount.mul(2).div(100);
-                _amount = _amount.sub(transferTax);
-            }
-            if (pool.depositFeeBP > 0) {
+            if(pool.depositFeeBP > 0){
                 uint256 depositFee = _amount.mul(pool.depositFeeBP).div(10000);
                 pool.lpToken.safeTransfer(feeAddress, depositFee);
                 user.amount = user.amount.add(_amount).sub(depositFee);
-            } else {
+            }else{
                 user.amount = user.amount.add(_amount);
             }
         }
-        user.rewardDebt = user.amount.mul(pool.accHornPerShare).div(1e12);
+        user.rewardDebt = user.amount.mul(pool.accEggPerShare).div(1e12);
         emit Deposit(msg.sender, _pid, _amount);
     }
 
@@ -305,15 +289,15 @@ contract MasterChef is Ownable, ReentrancyGuard {
         UserInfo storage user = userInfo[_pid][msg.sender];
         require(user.amount >= _amount, "withdraw: not good");
         updatePool(_pid);
-        uint256 pending = user.amount.mul(pool.accHornPerShare).div(1e12).sub(user.rewardDebt);
-        if (pending > 0) {
-            safeHornTransfer(msg.sender, pending);
+        uint256 pending = user.amount.mul(pool.accEggPerShare).div(1e12).sub(user.rewardDebt);
+        if(pending > 0) {
+            safeEggTransfer(msg.sender, pending);
         }
-        if (_amount > 0) {
+        if(_amount > 0) {
             user.amount = user.amount.sub(_amount);
             pool.lpToken.safeTransfer(address(msg.sender), _amount);
         }
-        user.rewardDebt = user.amount.mul(pool.accHornPerShare).div(1e12);
+        user.rewardDebt = user.amount.mul(pool.accEggPerShare).div(1e12);
         emit Withdraw(msg.sender, _pid, _amount);
     }
 
@@ -328,54 +312,35 @@ contract MasterChef is Ownable, ReentrancyGuard {
         emit EmergencyWithdraw(msg.sender, _pid, amount);
     }
 
-    // Safe Horn transfer function, just in case if rounding error causes pool to not have enough Horns.
-    function safeHornTransfer(address _to, uint256 _amount) internal {
-        uint256 HornBal = Horn.balanceOf(address(this));
-        bool transferSuccess = false;
-        if (_amount > HornBal) {
-            transferSuccess = Horn.transfer(_to, HornBal);
+    // Safe horn transfer function, just in case if rounding error causes pool to not have enough EGGs.
+    function safeEggTransfer(address _to, uint256 _amount) internal {
+        uint256 hornBal = horn.balanceOf(address(this));
+        if (_amount > hornBal) {
+            horn.transfer(_to, hornBal);
         } else {
-            transferSuccess = Horn.transfer(_to, _amount);
+            horn.transfer(_to, _amount);
         }
-        require(transferSuccess, "safeHornTransfer: Transfer failed");
     }
 
     // Update dev address by the previous dev.
-    function setDevAddress(address _devAddress) public {
-        require(msg.sender == devAddress, "setDevAddress: FORBIDDEN");
-        devAddress = _devAddress;
+    function dev(address _devaddr) public {
+        require(msg.sender == devaddr, "dev: wut?");
+        devaddr = _devaddr;
     }
 
-    function setFeeAddress(address _feeAddress) public {
+    function setFeeAddress(address _feeAddress) public{
         require(msg.sender == feeAddress, "setFeeAddress: FORBIDDEN");
         feeAddress = _feeAddress;
     }
 
-    // Reduce emission rate by 3% every 9,600 blocks ~ 8hours. This function can be called publicly.
-    function updateEmissionRate() public {
-        require(block.number > startBlock, "updateEmissionRate: Can only be called after mining starts");
-        require(HornPerBlock > MINIMUM_EMISSION_RATE, "updateEmissionRate: Emission rate has reached the minimum threshold");
-
-        uint256 currentIndex = block.number.sub(startBlock).div(EMISSION_REDUCTION_PERIOD_BLOCKS);
-        if (currentIndex <= lastReductionPeriodIndex) {
-            return;
-        }
-
-        uint256 newEmissionRate = HornPerBlock;
-        for (uint256 index = lastReductionPeriodIndex; index < currentIndex; ++index) {
-            newEmissionRate = newEmissionRate.mul(1e4 - EMISSION_REDUCTION_RATE_PER_PERIOD).div(1e4);
-        }
-
-        newEmissionRate = newEmissionRate < MINIMUM_EMISSION_RATE ? MINIMUM_EMISSION_RATE : newEmissionRate;
-        if (newEmissionRate >= HornPerBlock) {
-            return;
-        }
-
+    //Pancake has to add hidden dummy pools inorder to alter the emission, here we make it simple and transparent to all.
+    function updateEmissionRate(uint256 _hornPerBlock) public onlyOwner {
         massUpdatePools();
-        lastReductionPeriodIndex = currentIndex;
-        uint256 previousEmissionRate = HornPerBlock;
-        HornPerBlock = newEmissionRate;
-        emit EmissionRateUpdated(msg.sender, previousEmissionRate, newEmissionRate);
+        hornPerBlock = _hornPerBlock;
+    }
+
+    //Only update before start of farm
+    function updateStartBlock(uint256 _startBlock) public onlyOwner {
+        startBlock = _startBlock;
     }
 }
-
