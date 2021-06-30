@@ -105,18 +105,6 @@ library SafeBEP20 {
 
 
 
-interface IHornReferral {
-    /**
-     * @dev Record referral.
-     */
-    function recordReferral(address user, address referrer) external;
-
-    /**
-     * @dev Get the referrer address that referred the user.
-     */
-    function getReferrer(address user) external view returns (address);
-}
-
 
 // MasterChef is the master of Horn. He can make Horn and he is a fair guy.
 //
@@ -186,18 +174,10 @@ contract MasterChef is Ownable, ReentrancyGuard {
     // The block number when Horn mining starts.
     uint256 public startBlock;
 
-    // Horn referral contract address.
-    IHornReferral public HornReferral;
-    // Referral commission rate in basis points.
-    uint16 public referralCommissionRate = 100;
-    // Max referral commission rate: 20%.
-    uint16 public constant MAXIMUM_REFERRAL_COMMISSION_RATE = 2000;
-
     event Deposit(address indexed user, uint256 indexed pid, uint256 amount);
     event Withdraw(address indexed user, uint256 indexed pid, uint256 amount);
     event EmergencyWithdraw(address indexed user, uint256 indexed pid, uint256 amount);
     event EmissionRateUpdated(address indexed caller, uint256 previousAmount, uint256 newAmount);
-    event ReferralCommissionPaid(address indexed user, address indexed referrer, uint256 commissionAmount);
 
     constructor(
         HornToken _Horn,
@@ -299,7 +279,6 @@ contract MasterChef is Ownable, ReentrancyGuard {
             uint256 pending = user.amount.mul(pool.accHornPerShare).div(1e12).sub(user.rewardDebt);
             if (pending > 0) {
                 safeHornTransfer(msg.sender, pending);
-                payReferralCommission(msg.sender, pending);
             }
         }
         if (_amount > 0) {
@@ -329,7 +308,6 @@ contract MasterChef is Ownable, ReentrancyGuard {
         uint256 pending = user.amount.mul(pool.accHornPerShare).div(1e12).sub(user.rewardDebt);
         if (pending > 0) {
             safeHornTransfer(msg.sender, pending);
-            payReferralCommission(msg.sender, pending);
         }
         if (_amount > 0) {
             user.amount = user.amount.sub(_amount);
@@ -399,28 +377,5 @@ contract MasterChef is Ownable, ReentrancyGuard {
         HornPerBlock = newEmissionRate;
         emit EmissionRateUpdated(msg.sender, previousEmissionRate, newEmissionRate);
     }
-
-    // Update the Horn referral contract address by the owner
-    function setHornReferral(IHornReferral _HornReferral) public onlyOwner {
-        HornReferral = _HornReferral;
-    }
-
-    // Update referral commission rate by the owner
-    function setReferralCommissionRate(uint16 _referralCommissionRate) public onlyOwner {
-        require(_referralCommissionRate <= MAXIMUM_REFERRAL_COMMISSION_RATE, "setReferralCommissionRate: invalid referral commission rate basis points");
-        referralCommissionRate = _referralCommissionRate;
-    }
-
-    // Pay referral commission to the referrer who referred this user.
-    function payReferralCommission(address _user, uint256 _pending) internal {
-        if (address(HornReferral) != address(0) && referralCommissionRate > 0) {
-            address referrer = HornReferral.getReferrer(_user);
-            uint256 commissionAmount = _pending.mul(referralCommissionRate).div(10000);
-
-            if (referrer != address(0) && commissionAmount > 0) {
-                Horn.mint(referrer, commissionAmount);
-                emit ReferralCommissionPaid(_user, referrer, commissionAmount);
-            }
-        }
-    }
 }
+
