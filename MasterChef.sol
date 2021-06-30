@@ -291,13 +291,10 @@ contract MasterChef is Ownable, ReentrancyGuard {
     }
 
     // Deposit LP tokens to MasterChef for Horn allocation.
-    function deposit(uint256 _pid, uint256 _amount, address _referrer) public nonReentrant {
+    function deposit(uint256 _pid, uint256 _amount) public nonReentrant {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         updatePool(_pid);
-        if (_amount > 0 && address(HornReferral) != address(0) && _referrer != address(0) && _referrer != msg.sender) {
-            HornReferral.recordReferral(msg.sender, _referrer);
-        }
         if (user.amount > 0) {
             uint256 pending = user.amount.mul(pool.accHornPerShare).div(1e12).sub(user.rewardDebt);
             if (pending > 0) {
